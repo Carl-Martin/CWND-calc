@@ -1,3 +1,11 @@
+/*Takes two files with tcp-data and creates file
+ * with time and unacknowledged bytes sent which can
+ * later be plotted.
+ */
+
+
+
+
 #include <iostream>
 #include <string>
 #include <map>
@@ -12,7 +20,6 @@ struct pack{
     float time;
     int seq_nr;
     int ack_nr;
-    int port;
 };
 
 struct in_air{
@@ -26,9 +33,8 @@ void parse_input(vector<struct pack> *packets, char* filename)
 {
     ifstream the_file;
     the_file.open(filename);
-    int tmp_int;
+
     struct pack tmp_packet;
-    float tmp_float;
     string word;
     string line;
     stringstream ss;
@@ -39,8 +45,6 @@ void parse_input(vector<struct pack> *packets, char* filename)
         ss << line;
         for(int i = 0; i<10; ++i){
             ss >> word;
-            //cout << '(' << i << ')' + word << endl;
-
             switch (i){
                 case 1:
                     tmp_packet.time = atof(word.c_str());
@@ -53,17 +57,14 @@ void parse_input(vector<struct pack> *packets, char* filename)
                     break;
                 case 9:
                     handshaker = word.compare("Not");
-                    cout << word +" " << handshaker <<endl;
                     break;
             }
-
         }
         ss.str("");
-        //TODO
+
         if(handshaker == 0)
             packets->push_back(tmp_packet);
-        else
-            cout << "threw: " << tmp_packet.time << endl;
+
         getline(the_file, line);
     }
     the_file.close();
@@ -74,8 +75,7 @@ int main(){
     vector<struct pack> sent_packets;
     vector<struct pack> acked_packets;
 
-    string source_port;
-    int z=0;
+    int z=1; // set to 0 to make fast run but strict file names
     char filename1[40];
     char filename2[40];
     if(z){
@@ -92,8 +92,10 @@ int main(){
     parse_input(&sent_packets, filename1);
     parse_input(&acked_packets, filename2);
 
+    //<time, {seq, ack}>
     map<float, struct in_air> unack_map;
     struct pack next_sent;
+
     //add seq to map
     for(std::vector<struct pack>::iterator it1 = sent_packets.begin(); it1 != sent_packets.end(); ++it1){
         for(std::vector<struct pack>::iterator it3 = it1; it3 != sent_packets.end(); ++it3){
@@ -105,15 +107,12 @@ int main(){
         unack_map[it1->time].seq = next_sent.seq_nr;  
         unack_map[it1->time].ack = 0;  
     }
+
     //add ack to map
     for(std::vector<struct pack>::iterator it1 = acked_packets.begin(); it1 != acked_packets.end(); ++it1){
         unack_map[it1->time].ack = it1->ack_nr;  
         unack_map[it1->time].seq = 0;  
     } 
-
-   // for(std::vector<struct pack>::iterator it1 = sent_packets.begin(); it1 != sent_packets.end(); ++it1){
-   //     cout << it1->time << " " << it1->seq_nr << endl;
-   // }
 
     //itterate through map and adjust it (replace 0's)
     int latest_seq = 0;
@@ -129,23 +128,18 @@ int main(){
         it1->second.ack = latest_ack;
     }
 
-    /*
-       unack_map[1.04] = 8;
-       unack_map[2.04] = 7;
-       unack_map[1.05] = 6;
-       unack_map[1.03] = 10;
-       */
-    cout << "printing..." << endl;
-    for(std::map<float, struct in_air>::iterator it = unack_map.begin(); it != unack_map.end(); ++it){
-        cout << it->first << " " << it->second.seq << " " << it->second.ack << " " << it->second.seq - it->second.ack << endl;
-    }
-    cout << "done printing..." << endl;
-
+    cout << "printing to file..." << endl;
     ofstream outfile;
     outfile.open("t_vs_cwnd.txt");
+    int points = 0;
+
     for(std::map<float, struct in_air>::iterator it = unack_map.begin(); it != unack_map.end(); ++it){
         outfile << it->first << " " << it->second.seq << " " << it->second.ack << " " << it->second.seq - it->second.ack << endl;
+        ++points;
     }
+
+    cout << points << " data-points printed..." << endl;
+    cout << "Done!" << endl;
+
     return 0;
 }
-
